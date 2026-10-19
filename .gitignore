@@ -1,0 +1,15 @@
+# Datos reales de ejecutivos (RUT, nombres, licencias): nunca se suben.
+# Las plantillas reutilizables con datos ficticios están en plantillas/.
+data/
+salida/
+TURNO-PLANIFICACION*.xlsx
+
+# Archivos temporales de Excel (se crean mientras un archivo está abierto)
+~$*
+
+# Python / Jupyter
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
