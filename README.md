@@ -1,5 +1,7 @@
 # Libro-GHE · Generador de horarios ProContact
 
+[![Abrir en Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/NotProblem001/Libro-GHE/blob/main/planificacion_turnos.ipynb)
+
 Crea el horario mensual de los ejecutivos ProContact con un solo clic. Cada mes se ajusta una planilla Excel, se presiona ▶ en el libro y sale el horario listo en Excel. Incluye turnos, sábados, pausas, colaciones y alertas.
 
 ## Qué hay en el repositorio
@@ -16,7 +18,21 @@ Crea el horario mensual de los ejecutivos ProContact con un solo clic. Cada mes 
 
 `data/` y `salida/` no se suben a git porque contienen RUT y nombres reales.
 
-## Primera vez
+## Usarlo en Google Colab (recomendado, no se instala nada)
+
+1. Presione el botón **Abrir en Colab** de arriba y luego ▶ en la casilla gris. Acepte el permiso para usar Google Drive.
+   - La primera vez se crea en su Drive la carpeta **Mi unidad → Libro-GHE**, con `data/PLANTILLA_MES.xlsx` vacía.
+   - El programa (`motor_turnos.py`) se descarga solo desde este repositorio.
+2. En [Google Drive](https://drive.google.com), entre a **Libro-GHE/data**:
+   - Abra `PLANTILLA_MES.xlsx` y complete los ejecutivos. Se edita directo en Drive. También puede subir una plantilla ya llena con ese mismo nombre.
+   - Solo la primera vez, suba el Excel del último horario real con el nombre `horario_mes_anterior.xlsx`.
+3. Vuelva a Colab y presione ▶. El horario queda en **Libro-GHE/salida**.
+
+Los meses siguientes basta con abrir el libro con el botón, ajustar la plantilla en Drive y presionar ▶. Los archivos quedan guardados en su Drive y no se pierden al cerrar Colab.
+
+> Para guardar una copia propia del libro: en Colab, use **Archivo → Guardar una copia en Drive**.
+
+## Primera vez (en su computador)
 
 1. Instale Python 3.10 o superior. Luego instale las librerías con:
    ```
