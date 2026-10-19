@@ -103,4 +103,4 @@ TURNOS, PARAMETROS y COBERTURA solo se cambian si cambian las reglas de la empre
 | Errores en la plantilla | Corrija la hoja y fila que se indica, guarde, cierre y presione ▶ |
 | No encuentra horario anterior | Copie el último horario como `data/horario_mes_anterior.xlsx`, o escriba el mes en `MES` |
 
-**Alertas "DEMASIADOS EN DESCANSO A LA VEZ":** con 16 personas, no alcanza para cumplir a la vez el tope de 30% en descanso y las pausas obligatorias en el horario de 13:00 a 16:00. Para que desaparezcan, la empresa debe ajustar esa regla en PARAMETROS o aumentar la dotación.
+**Alertas "DEMASIADOS EN DESCANSO A LA VEZ":** el tope se calcula sobre el total de ejecutivos activos (30% de 16 = 4 personas a la vez, incluidas pausas y colaciones). Si aparece esta alerta, normalmente es porque hay muchas ausencias o se cambiaron los horarios de la hoja TURNOS: revise los días y horas que indica la hoja ALERTAS.

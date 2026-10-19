@@ -7,7 +7,7 @@ Reglas implementadas (documento "Horarios y Duración de Turnos.docx"):
 - 42 h semanales de lunes a sábado; domingo no se trabaja.
 - Colación 60 min L-V; sábado 30 min (10:30 u 11:00) sin pausas.
 - Pausas de 15 min tras 2,0-3,0 h conectado; nunca al entrar ni justo antes de salir.
-- Máximo 30% de la plataforma en descanso a la vez; 1 en colación por servicio por cada 4 en turno.
+- Máximo 30% de la plataforma (ejecutivos activos) en descanso a la vez; 1 en colación por servicio por cada 4 en turno.
 - Coberturas mínimas globales (08:00, 09:00, cierre 20:00, sábados).
 - Secuencia de sábados: 2 libres, 1 trabajado.
 """
@@ -55,7 +55,7 @@ PARAMETROS = [
     ("conectado_min_h", "Pausa: mínimo de horas conectado antes", 2, "La pausa se toma entre 2,0 y 3,0 h después de entrar / volver."),
     ("conectado_max_h", "Pausa: máximo de horas conectado antes", 3, ""),
     ("pausa_margen_salida_min", "Pausa: minutos mínimos antes de la salida", 30, "No se puede tomar la pausa justo antes de salir."),
-    ("max_pct_en_descanso", "Máximo % de la plataforma en descanso a la vez", 30, "Incluye pausas y colaciones."),
+    ("max_pct_en_descanso", "Máximo % de la plataforma en descanso a la vez", 30, "Incluye pausas y colaciones. Se calcula sobre el total de ejecutivos activos (ej. 30% de 16 = 4)."),
     ("ejecutivos_por_cupo_colacion", "Ejecutivos en turno por cada cupo de colación (por servicio)", 4, "1 en colación por cada 4 en turno del mismo servicio."),
     ("ciclo_sabados", "Sábados: trabaja 1 de cada", 3, "3 = 2 sábados libres y 1 trabajado."),
     ("cupo_tarde", "Ejecutivos en turno Tarde cada semana", 3, "Asegura la cobertura del cierre (20:00)."),
@@ -547,7 +547,8 @@ def opciones_descanso(ini, fin, sabado, reglas_json):
     lo, hi = int(r["conectado_min_h"] * 60), int(r["conectado_max_h"] * 60)
     out = []
     for d1 in range(ini + lo, ini + hi + 1, 15):
-        for c in range(d1 + p + lo, d1 + p + hi + 1, 15):
+        # el docx solo exige no pasar 3 h conectado antes de la colación; 1 h evita que la pausa quede pegada a ella
+        for c in range(d1 + p + 60, d1 + p + hi + 1, 15):
             for d2 in range(c + col + lo, c + col + hi + 1, 15):
                 if r["pausa_margen_salida_min"] <= fin - (d2 + p) <= hi:
                     out.append((d1, c, col, d2))
@@ -567,7 +568,7 @@ def asignar_descansos(plan, reglas, reinicios=40):
         plan[col] = None
     plan["Minutos Colacion"] = 0
     for fecha, dia in plan[plan["ESTADO_DIA"] == "TRABAJA"].groupby("FECHA"):
-        cupo = max(1, math.floor(reglas["max_pct_en_descanso"] * len(dia)))
+        cupo = max(1, math.floor(reglas["max_pct_en_descanso"] * reglas["n_plataforma"]))
         cupo_col = {s: max(1, n // reglas["ejecutivos_por_cupo_colacion"]) for s, n in dia["SERVICIO"].value_counts().items()}
         filas = {idx: f for idx, f in dia.sort_values(["H_INICIO", "RUT"]).iterrows()}
         opciones = {}
@@ -665,9 +666,8 @@ def auditar(plan, ejecutivos, previo, reglas):
     bloques = pd.DataFrame(registros, columns=["FECHA", "BLOQUE", "DISPONIBLE"])
     resumen = bloques.groupby(["FECHA", "BLOQUE"]).agg(EN_TURNO=("DISPONIBLE", "size"), DISPONIBLES=("DISPONIBLE", "sum")).reset_index()
     resumen["EN_DESCANSO"] = resumen["EN_TURNO"] - resumen["DISPONIBLES"]
-    en_turno_dia = trab.groupby("FECHA").size()
     for f in resumen.itertuples():
-        cupo = max(1, math.floor(reglas["max_pct_en_descanso"] * en_turno_dia[f.FECHA]))
+        cupo = max(1, math.floor(reglas["max_pct_en_descanso"] * reglas["n_plataforma"]))
         if f.EN_DESCANSO > cupo:
             alerta("DEMASIADOS EN DESCANSO A LA VEZ", f.FECHA, None, f"{a_hhmm(f.BLOQUE)}: {f.EN_DESCANSO} en descanso (máximo {cupo})")
     disp = resumen.set_index(["FECHA", "BLOQUE"])["DISPONIBLES"]
@@ -828,6 +828,7 @@ def _generar(mes, base):
         raise ErrorUsuario("No existía la plantilla, así que se creó una nueva en data/PLANTILLA_MES.xlsx.\n"
                            "Ábrala, complete la hoja EJECUTIVOS, guarde, ciérrela y presione ▶ de nuevo.")
     ejecutivos, ausencias, reglas, feriados, avisos = leer_plantilla(plantilla)
+    reglas["n_plataforma"] = len(ejecutivos)  # el % máximo en descanso es sobre toda la plataforma activa
     print(f"   ✅ {len(ejecutivos)} ejecutivos activos · {len(ausencias)} días de ausencia · turnos de {reglas['horas_semanales_contrato']:g} h correctos")
 
     print("▶ Paso 2 de 4 · Leyendo el horario anterior...")
