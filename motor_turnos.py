@@ -6,7 +6,10 @@ Todas las reglas que se pueden cambiar están en la plantilla Excel data/PLANTIL
 Reglas implementadas (documento "Horarios y Duración de Turnos.docx"):
 - 42 h semanales de lunes a sábado; domingo no se trabaja.
 - Colación 60 min L-V; sábado 30 min (10:30 u 11:00) sin pausas.
-- Pausas de 15 min tras 2,0-3,0 h conectado; nunca al entrar ni justo antes de salir.
+- Pausas de 15 min tras 1,5-3,0 h conectado, desde las 09:30, escalonadas cada 15 min; la 2ª termina al menos 45 min antes de salir.
+- Colación L-V: 15:00 fija para el turno de cierre (20:00); desde 11:30 si sale a las 16:30 o antes; desde 12:00 el resto.
+- Ningún tramo conectado (ingreso → pausa 1 → colación → pausa 2 → salida) supera 3 h.
+- Hoja EJECUTIVOS, columna TURNO_FIJO (opcional): "Sin sábado" o el nombre de un turno fijo.
 - Máximo 30% de la plataforma (ejecutivos activos) en descanso a la vez; 1 en colación por servicio por cada 4 en turno.
 - Coberturas mínimas globales (08:00, 09:00, cierre 20:00, sábados).
 - Secuencia de sábados: 2 libres, 1 trabajado.
@@ -35,6 +38,8 @@ MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto
          "septiembre", "octubre", "noviembre", "diciembre"]
 TURNOS_REQUERIDOS = ["Mañana C/sábado", "Tarde C/sábado", "Mañana S/sábado", "Tarde S/sábado", "Intermedio S/sábado"]
 SERVICIOS = ["IMAGENES", "EXAMEN Y PROCEDIMIENTOS"]
+SIN_SABADO = "Sin sábado"  # valor de TURNO_FIJO: rota turnos de L-V pero nunca trabaja sábado
+PARAMETROS_HORA = {"pausa_hora_inicio", "colacion_inicio", "colacion_inicio_temprana", "colacion_cierre"}
 TIPOS_AUSENCIA = ["LICENCIA", "VACACIONES", "PERMISO"]
 
 
@@ -52,9 +57,13 @@ PARAMETROS = [
     ("colacion_min_sab", "Colación sábado (minutos)", 30, ""),
     ("colacion_sab_inicios", "Horarios de colación del sábado", "10:30, 11:00", "Horas de salida a colación permitidas el sábado, separadas por coma."),
     ("pausa_min", "Duración de cada pausa (minutos)", 15, ""),
-    ("conectado_min_h", "Pausa: mínimo de horas conectado antes", 2, "La pausa se toma entre 2,0 y 3,0 h después de entrar / volver."),
+    ("conectado_min_h", "Pausa: mínimo de horas conectado antes", 1.5, "La pausa se toma entre 1,5 y 3,0 h después de entrar / volver."),
     ("conectado_max_h", "Pausa: máximo de horas conectado antes", 3, ""),
-    ("pausa_margen_salida_min", "Pausa: minutos mínimos antes de la salida", 30, "No se puede tomar la pausa justo antes de salir."),
+    ("pausa_margen_salida_min", "Pausa: minutos mínimos antes de la salida", 45, "Entre el fin de la 2ª pausa y la salida."),
+    ("pausa_hora_inicio", "Pausa: hora más temprana", "09:30", "Las pausas se escalonan cada 15 min desde esta hora."),
+    ("colacion_inicio", "Colación L-V: hora más temprana", "12:00", ""),
+    ("colacion_inicio_temprana", "Colación L-V: hora más temprana si sale a las 16:30 o antes", "11:30", ""),
+    ("colacion_cierre", "Colación L-V: hora fija del turno de cierre", "15:00", "Para quienes salen a la hora de cierre (la salida más tarde de la hoja TURNOS)."),
     ("max_pct_en_descanso", "Máximo % de la plataforma en descanso a la vez", 30, "Incluye pausas y colaciones. Se calcula sobre el total de ejecutivos activos (ej. 30% de 16 = 4)."),
     ("ejecutivos_por_cupo_colacion", "Ejecutivos en turno por cada cupo de colación (por servicio)", 4, "1 en colación por cada 4 en turno del mismo servicio."),
     ("ciclo_sabados", "Sábados: trabaja 1 de cada", 3, "3 = 2 sábados libres y 1 trabajado."),
@@ -66,7 +75,7 @@ TURNOS_DEFECTO = {  # [inicio, término] de Lunes a Sábado; None = no trabaja
     "Tarde C/sábado": [["11:30", "20:00"]] * 3 + [["12:00", "20:00"]] * 2 + [["08:00", "14:00"]],
     "Mañana S/sábado": [["08:00", "17:30"]] * 4 + [["08:00", "17:00"]] + [None],
     "Tarde S/sábado": [["10:30", "20:00"]] * 4 + [["11:00", "20:00"]] + [None],
-    "Intermedio S/sábado": [["09:00", "19:00"]] * 2 + [["09:00", "18:00"]] * 3 + [None],
+    "Intermedio S/sábado": [["09:00", "19:00"]] * 3 + [["09:30", "18:30"], ["09:30", "17:30"], None],
 }
 COBERTURA_DEFECTO = [("Lunes a Viernes", "08:00", 6), ("Lunes a Viernes", "09:00", 3), ("Lunes a Viernes", "19:45", 3),
                      ("Sábado", "08:00", 4), ("Sábado", "13:45", 4)]
@@ -189,6 +198,7 @@ def crear_plantilla(ruta, ejecutivos=None):
         "CÓMO PREPARAR EL MES (solo modifique lo que cambió respecto del mes anterior)",
         "",
         "1. EJECUTIVOS: una fila por persona. Si alguien se va, cambie ESTADO a Inactivo. Si llega alguien, agréguelo al final.",
+        "   TURNO_FIJO (opcional): 'Sin sábado' = solo trabaja de lunes a viernes; o elija un turno para dejarlo fijo todo el mes.",
         "   El RUT puede escribirse con o sin puntos y guión. SERVICIO y ESTADO se eligen de la lista.",
         "2. AUSENCIAS: licencias, vacaciones o permisos del mes (una fila por período, fechas DESDE y HASTA).",
         "3. FERIADOS: revise que estén los feriados del mes a planificar.",
@@ -205,11 +215,12 @@ def crear_plantilla(ruta, ejecutivos=None):
     ws.column_dimensions["A"].width = 120
 
     ws = wb.create_sheet("EJECUTIVOS")
-    _encabezado(ws, ["RUT", "NOMBRE", "ESTADO", "SERVICIO", "HORAS_CONTRATO"], [14, 42, 12, 28, 16])
+    _encabezado(ws, ["RUT", "NOMBRE", "ESTADO", "SERVICIO", "HORAS_CONTRATO", "TURNO_FIJO"], [14, 42, 12, 28, 16, 22])
     for e in (ejecutivos.itertuples(index=False) if ejecutivos is not None else []):
-        ws.append([e.RUT, e.NOMBRE, e.ESTADO, e.SERVICIO, int(e.HORAS_CONTRATO)])
+        ws.append([e.RUT, e.NOMBRE, e.ESTADO, e.SERVICIO, int(e.HORAS_CONTRATO), getattr(e, "TURNO_FIJO", None)])
     _lista(ws, ["Activo", "Inactivo"], "C2:C500")
     _lista(ws, SERVICIOS, "D2:D500")
+    _lista(ws, [SIN_SABADO, *TURNOS_DEFECTO], "F2:F500")
 
     ws = wb.create_sheet("AUSENCIAS")
     _encabezado(ws, ["RUT", "NOMBRE (referencia)", "TIPO", "DESDE", "HASTA"], [14, 42, 14, 12, 12])
@@ -286,6 +297,12 @@ def leer_plantilla(ruta):
                 errores.append(f"PARAMETROS · '{etiqueta}': escriba horas separadas por coma, ej. 10:30, 11:00 (dice '{v}').")
             reglas[clave] = [h for h in horas if h]
             continue
+        if clave in PARAMETROS_HORA:
+            reglas[clave] = normalizar_hora(v)
+            if reglas[clave] is None:
+                errores.append(f"PARAMETROS · '{etiqueta}': escriba una hora, ej. {defecto} (dice '{v}').")
+                reglas[clave] = defecto
+            continue
         try:
             reglas[clave] = float(v)
         except (TypeError, ValueError):
@@ -359,6 +376,17 @@ def leer_plantilla(ruta):
         ej["SERVICIO"] = ej.get("SERVICIO", pd.Series(index=ej.index, dtype=object)).fillna("SIN ASIGNAR").map(limpiar_texto)
         ej["HORAS_CONTRATO"] = pd.to_numeric(ej.get("HORAS_CONTRATO"), errors="coerce")
         ej["HORAS_CONTRATO"] = ej["HORAS_CONTRATO"].fillna(reglas["horas_semanales_contrato"])
+        validos = {limpiar_texto(t): t for t in [SIN_SABADO, *reglas["turnos"]]}
+        fijos = []
+        for fila, v in zip(ej.index + 2, ej.get("TURNO_FIJO", pd.Series(index=ej.index, dtype=object))):
+            if pd.isna(v) or not str(v).strip():
+                fijos.append(None)
+            elif limpiar_texto(v) in validos:
+                fijos.append(validos[limpiar_texto(v)])
+            else:
+                errores.append(f"EJECUTIVOS fila {fila}: TURNO_FIJO '{v}' no existe (use '{SIN_SABADO}' o un turno de la hoja TURNOS).")
+                fijos.append(None)
+        ej["TURNO_FIJO"] = fijos
         dup = ej[ej["RUT"].notna() & ej["RUT"].duplicated(keep=False)]
         for rut, g in dup.groupby("RUT"):
             errores.append(f"EJECUTIVOS: el RUT {rut} está repetido en las filas {', '.join(str(i + 2) for i in g.index)}.")
@@ -394,7 +422,7 @@ def leer_plantilla(ruta):
     if errores:
         raise ErrorUsuario("Corrija lo siguiente en data/PLANTILLA_MES.xlsx, guarde, cierre el archivo y presione ▶ de nuevo:\n"
                            + "\n".join(f"   • {e}" for e in errores))
-    return activos[["RUT", "NOMBRE", "ESTADO", "SERVICIO", "HORAS_CONTRATO"]], ausencias, reglas, feriados.tolist(), avisos
+    return activos[["RUT", "NOMBRE", "ESTADO", "SERVICIO", "HORAS_CONTRATO", "TURNO_FIJO"]], ausencias, reglas, feriados.tolist(), avisos
 
 
 # ═══════════════════════════ Horario del mes anterior ═══════════════════════════
@@ -502,20 +530,25 @@ def asignar_turnos_semanales(ejecutivos, calendario, previo, ausencias, reglas):
     """Un turno por ejecutivo y semana: cupos de Tarde y Mañana para quienes menos los han tenido."""
     ciclo, cupos = reglas["ciclo_sabados"], reglas["cupos_semana"]
     ruts = list(ejecutivos["RUT"])
-    fase = asignar_fase_sabado(ruts, previo, ciclo, max(reglas["cobertura_min"]["SAB"].values(), default=0))
+    fijo = {r: v if isinstance(v, str) else None for r, v in zip(ejecutivos["RUT"], ejecutivos["TURNO_FIJO"])}  # None | SIN_SABADO | turno
+    rotan = [r for r in ruts if not fijo[r]]  # solo ellos entran a la secuencia de sábados
+    fase = asignar_fase_sabado(rotan, previo, ciclo, max(reglas["cobertura_min"]["SAB"].values(), default=0))
     conteo = {r: Counter(previo.get(r, {}).get("conteo", {})) for r in ruts}
     ultimo = {r: previo.get(r, {}).get("ultimo_turno") for r in ruts}
     filas = []
     for semana, dias in calendario[calendario["DOW"] < 6].groupby("SEMANA"):
         disponibles = [r for r in ruts if not all((r, f) in ausencias for f in dias["FECHA"])]
-        grupo_sab = {r for r in disponibles if (semana + fase[r]) % ciclo == 0}
-        tarde = sorted(disponibles, key=lambda r: (conteo[r]["Tarde"], ultimo[r] == "Tarde", r))[:cupos["Tarde"]]
-        resto = [r for r in disponibles if r not in tarde]
+        libres = [r for r in disponibles if fijo[r] in (None, SIN_SABADO)]  # sin turno fijo
+        grupo_sab = {r for r in libres if r in fase and (semana + fase[r]) % ciclo == 0}
+        tarde = sorted(libres, key=lambda r: (conteo[r]["Tarde"], ultimo[r] == "Tarde", r))[:cupos["Tarde"]]
+        resto = [r for r in libres if r not in tarde]
         manana = [r for r in resto if r in grupo_sab]  # no existe Intermedio con sábado
         manana += sorted((r for r in resto if r not in grupo_sab), key=lambda r: (conteo[r]["Mañana"], r))[:max(0, cupos["Mañana"] - len(manana))]
         for r in ruts:
             familia = "Tarde" if r in tarde else "Mañana" if r in manana else "Intermedio"
-            filas.append({"SEMANA": semana, "RUT": r, "TURNO": f"{familia} {'C' if r in grupo_sab else 'S'}/sábado"})
+            turno = fijo[r] if fijo[r] not in (None, SIN_SABADO) else f"{familia} {'C' if r in grupo_sab else 'S'}/sábado"
+            familia = turno.split()[0]
+            filas.append({"SEMANA": semana, "RUT": r, "TURNO": turno})
             if r in disponibles:
                 conteo[r][familia] += 1
                 ultimo[r] = familia
@@ -545,10 +578,15 @@ def opciones_descanso(ini, fin, sabado, reglas_json):
         return [(None, c, dur, None) for c in map(a_min, r["colacion_sab_inicios"]) if ini < c and c + dur <= fin]
     p, col = r["pausa_min"], r["colacion_min_lv"]
     lo, hi = int(r["conectado_min_h"] * 60), int(r["conectado_max_h"] * 60)
+    cierre = max(a_min(d[1]) for dias in r["turnos"].values() for d in dias[:5] if d)
+    if fin == cierre:  # turno de cierre: colación fija
+        c_lo = c_hi = a_min(r["colacion_cierre"])
+    else:
+        c_lo, c_hi = a_min(r["colacion_inicio_temprana" if fin <= a_min("16:30") else "colacion_inicio"]), fin
     out = []
-    for d1 in range(ini + lo, ini + hi + 1, 15):
+    for d1 in range(max(ini + lo, a_min(r["pausa_hora_inicio"])), ini + hi + 1, 15):
         # el docx solo exige no pasar 3 h conectado antes de la colación; 1 h evita que la pausa quede pegada a ella
-        for c in range(d1 + p + 60, d1 + p + hi + 1, 15):
+        for c in range(max(d1 + p + 60, c_lo), min(d1 + p + hi, c_hi) + 1, 15):
             for d2 in range(c + col + lo, c + col + hi + 1, 15):
                 if r["pausa_margen_salida_min"] <= fin - (d2 + p) <= hi:
                     out.append((d1, c, col, d2))
@@ -616,6 +654,35 @@ def asignar_descansos(plan, reglas, reinicios=40):
 
 
 # ═══════════════════════════ Validación ═══════════════════════════
+def tramos_conectado(f, reglas):
+    """Minutos conectado entre hitos: ingreso → pausa 1 → colación → pausa 2 → salida (se cuenta desde el fin de cada pausa)."""
+    hitos = [a_min(f["H_INICIO"])]
+    for ini, dur in [(f["DESCANSO 1"], reglas["pausa_min"]), (f["SALIDA COLACION"], int(f["Minutos Colacion"])),
+                     (f["DESCANSO 2"], reglas["pausa_min"])]:
+        if isinstance(ini, str):
+            hitos += [a_min(ini), a_min(ini) + dur]
+    hitos.append(a_min(f["H_TERMINO"]))
+    return [hitos[i + 1] - hitos[i] for i in range(0, len(hitos), 2)]
+
+
+METRICAS = ["dif_ingreso_descanso1", "dif_descanso1_colacion", "dif_colacion_descanso2", "dif_descanso2_salida",
+            "alerta_max_3hrs", "alerta_holgura_salida"]
+
+
+def agregar_metricas(plan, reglas):
+    """Columnas de control por jornada: minutos de cada tramo y OK/ALERTA (tramo > 3 h, 2ª pausa a < 45 min de salir)."""
+    filas = []
+    for f in plan.to_dict("records"):
+        if f["ESTADO_DIA"] != "TRABAJA":
+            filas.append([None] * 6)
+            continue
+        tramos = tramos_conectado(f, reglas)
+        difs = tramos if len(tramos) == 4 else [None] * 4  # sábado: sin pausas
+        filas.append(difs + ["ALERTA" if max(tramos) > reglas["conectado_max_h"] * 60 else "OK",
+                             "ALERTA" if difs[3] is not None and difs[3] < reglas["pausa_margen_salida_min"] else "OK"])
+    return plan.join(pd.DataFrame(filas, columns=METRICAS, index=plan.index, dtype=object))
+
+
 def auditar(plan, ejecutivos, previo, reglas):
     """Control de calidad independiente del motor: horas, descanso entre jornadas, pausas y cobertura."""
     alertas = []
@@ -644,15 +711,12 @@ def auditar(plan, ejecutivos, previo, reglas):
     for (_, f), g in zip(trab.iterrows(), gap_h):
         if pd.notna(g) and g < reglas["descanso_min_entre_jornadas_h"]:
             alerta("POCO DESCANSO ENTRE JORNADAS", f["FECHA"], f["RUT"], f"solo {g:.1f} h desde la jornada anterior")
-        hitos = [a_min(f["H_INICIO"])]
-        for ini, dur in [(f["DESCANSO 1"], reglas["pausa_min"]), (f["SALIDA COLACION"], int(f["Minutos Colacion"])),
-                         (f["DESCANSO 2"], reglas["pausa_min"])]:
-            if isinstance(ini, str):
-                hitos += [a_min(ini), a_min(ini) + dur]
-        hitos.append(a_min(f["H_TERMINO"]))
-        tramos = [hitos[i + 1] - hitos[i] for i in range(0, len(hitos), 2)]
+        tramos = tramos_conectado(f, reglas)
         if max(tramos) > reglas["conectado_max_h"] * 60:
             alerta("MÁS DE 3 H CONECTADO SIN PAUSA", f["FECHA"], f["RUT"], f"tramos de {tramos} min")
+        if isinstance(f["DESCANSO 2"], str) and tramos[-1] < reglas["pausa_margen_salida_min"]:
+            alerta("PAUSA MUY CERCA DE LA SALIDA", f["FECHA"], f["RUT"],
+                   f"la 2ª pausa termina {tramos[-1]} min antes de salir (mínimo {reglas['pausa_margen_salida_min']})")
 
     registros = []
     for f in trab.to_dict("records"):
@@ -717,7 +781,7 @@ def exportar_excel(ruta, plan, ejecutivos, turnos_semana, calendario, alertas, r
     ws.title = "PLANIFICACION_MENSUAL"
     enc = ["RUT", "Estado", "NOMBRE", "SERVICIO", "FECHA", "DIA", "SEMANA", "TURNO", "ESTADO_DIA", "H_INICIO", "H_TERMINO",
            "DURACION", "Horas diarias", "Minutos Colacion", "hora colacion", "Total Horas Trabajadas", "HORAS TRABAJADAS",
-           "DESCANSO 1", "DESCANSO 2", "SALIDA COLACION", "ENTRADA COLACION", "TIEMPO COLACION"]
+           "DESCANSO 1", "DESCANSO 2", "SALIDA COLACION", "ENTRADA COLACION", "TIEMPO COLACION"] + METRICAS
     ws.append(enc)
     for i, g in enumerate(plan.to_dict("records"), start=2):
         ws.append([
@@ -727,12 +791,13 @@ def exportar_excel(ruta, plan, ejecutivos, turnos_semana, calendario, alertas, r
             f"=SUMIFS($P:$P,$A:$A,A{i},$G:$G,G{i})",
             a_time(g["DESCANSO 1"]), a_time(g["DESCANSO 2"]), a_time(g["SALIDA COLACION"]), a_time(g["ENTRADA COLACION"]),
             f"=IF(COUNT(T{i}:U{i})=2,ROUND((U{i}-T{i})*1440,0),0)",
-        ])
+        ] + [g[m] for m in METRICAS])
     n_plan = len(plan)
-    estilo_tabla(ws, n_plan, len(enc), [12, 9, 38, 26, 12, 11, 12, 20, 12, 9, 10, 10, 9, 10, 9, 11, 11, 10, 10, 11, 11, 10],
+    estilo_tabla(ws, n_plan, len(enc), [12, 9, 38, 26, 12, 11, 12, 20, 12, 9, 10, 10, 9, 10, 9, 11, 11, 10, 10, 11, 11, 10] + [13] * 6,
                  {c: "hh:mm" for c in (10, 11, 12, 18, 19, 20, 21)} | {5: "yyyy-mm-dd", 7: "yyyy-mm-dd", 13: "0.0", 15: "0.0", 16: "0.0", 17: "0.0"})
     for estado, color in COLORES_ESTADO.items():
-        ws.conditional_formatting.add(f"A2:V{n_plan + 1}", FormulaRule(formula=[f'$I2="{estado}"'], fill=PatternFill("solid", fgColor=color)))
+        ws.conditional_formatting.add(f"A2:AB{n_plan + 1}", FormulaRule(formula=[f'$I2="{estado}"'], fill=PatternFill("solid", fgColor=color)))
+    ws.conditional_formatting.add(f"AA2:AB{n_plan + 1}", FormulaRule(formula=['AA2="ALERTA"'], fill=PatternFill("solid", fgColor="F8CBAD")))
 
     ws = wb.create_sheet("RESUMEN_EJECUTIVOS")
     enc = ["RUT", "NOMBRE", "SERVICIO", "HORAS CONTRATO SEMANAL", "MÁX. HORAS SEMANA", "HORAS PLANIFICADAS MES",
@@ -860,7 +925,7 @@ def _generar(mes, base):
     print("▶ Paso 3 de 4 · Asignando turnos, pausas y colaciones...")
     calendario = generar_calendario(inicio, feriados)
     turnos_semana = asignar_turnos_semanales(ejecutivos, calendario, previo, ausencias, reglas)
-    plan = asignar_descansos(expandir_plan(ejecutivos, calendario, turnos_semana, ausencias, reglas), reglas)
+    plan = agregar_metricas(asignar_descansos(expandir_plan(ejecutivos, calendario, turnos_semana, ausencias, reglas), reglas), reglas)
     print(f"   ✅ {int((plan['ESTADO_DIA'] == 'TRABAJA').sum())} jornadas asignadas")
 
     print("▶ Paso 4 de 4 · Validando y creando el Excel...")

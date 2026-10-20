@@ -68,7 +68,7 @@ Para **rehacer un mes**, cambie en la casilla `MES = "auto"` por, por ejemplo, `
 | Hoja | Contenido |
 |---|---|
 | INSTRUCCIONES | Paso a paso dentro del mismo Excel |
-| EJECUTIVOS | RUT, nombre, estado y servicio (desde una lista), y horas de contrato |
+| EJECUTIVOS | RUT, nombre, estado y servicio (desde una lista), horas de contrato y `TURNO_FIJO` (opcional: `Sin sábado` = solo lunes a viernes, o un turno fijo todo el mes) |
 | AUSENCIAS | RUT, tipo (LICENCIA / VACACIONES / PERMISO), desde y hasta |
 | FERIADOS | Fechas no laborales |
 | TURNOS | Los 5 turnos con sus horarios. La columna HORAS SEMANA debe dar 42 |
@@ -86,9 +86,11 @@ TURNOS, PARAMETROS y COBERTURA solo se cambian si cambian las reglas de la empre
    - 1 de cada 3 sábados trabajado, en forma pareja entre todos.
    - Turnos de tarde repartidos entre quienes han tenido menos.
    - Colación de 60 min de lunes a viernes y de 30 min el sábado.
-   - Pausas de 15 min, sin superar el % máximo de la plataforma en descanso.
+   - Pausas de 15 min, sin superar el % máximo de la plataforma en descanso. Se escalonan cada 15 min desde las 09:30 y la 2ª termina al menos 45 min antes de la salida.
+   - Colación de lunes a viernes: fija a las 15:00 para quien cierra a las 20:00; desde las 11:30 para quien sale a las 16:00 o 16:30; desde las 12:00 el resto.
+   - Ningún tramo conectado (ingreso → pausa 1 → colación → pausa 2 → salida) supera 3 h.
 4. **Valida y exporta** un Excel con 4 hojas:
-   - `PLANIFICACION_MENSUAL`: jornada diaria de cada ejecutivo.
+   - `PLANIFICACION_MENSUAL`: jornada diaria de cada ejecutivo. Las últimas 6 columnas son de control: minutos de cada tramo (`dif_ingreso_descanso1`, `dif_descanso1_colacion`, `dif_colacion_descanso2`, `dif_descanso2_salida`, contados desde el fin de cada pausa) y `alerta_max_3hrs` / `alerta_holgura_salida` (OK / ALERTA).
    - `RESUMEN_EJECUTIVOS`: horas y sábados por persona, con fórmulas.
    - `MATRIZ_COBERTURA`: ejecutivos conectados por hora y día.
    - `ALERTAS`: lo que no se pudo cumplir, para revisión manual.
