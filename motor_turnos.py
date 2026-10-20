@@ -690,6 +690,7 @@ def auditar(plan, ejecutivos, previo, reglas):
         alertas.append({"TIPO": tipo, "FECHA": fecha, "RUT": rut, "DETALLE": detalle})
     trab = plan[plan["ESTADO_DIA"] == "TRABAJA"].copy()
     contrato = ejecutivos.set_index("RUT")["HORAS_CONTRATO"]
+    fijo = {r: v for r, v in zip(ejecutivos["RUT"], ejecutivos["TURNO_FIJO"]) if isinstance(v, str)}
 
     for _, f in trab[trab["Horas diarias"] > reglas["max_horas_diarias"]].iterrows():
         alerta("EXCESO DE HORAS EN EL DÍA", f["FECHA"], f["RUT"], f"{f['Horas diarias']:.1f} h de jornada")
@@ -711,6 +712,8 @@ def auditar(plan, ejecutivos, previo, reglas):
     for (_, f), g in zip(trab.iterrows(), gap_h):
         if pd.notna(g) and g < reglas["descanso_min_entre_jornadas_h"]:
             alerta("POCO DESCANSO ENTRE JORNADAS", f["FECHA"], f["RUT"], f"solo {g:.1f} h desde la jornada anterior")
+        if f["RUT"] in fijo and (f["DOW"] == 5 if fijo[f["RUT"]] == SIN_SABADO else f["TURNO"] != fijo[f["RUT"]]):
+            alerta("TURNO FIJO NO RESPETADO", f["FECHA"], f["RUT"], f"TURNO_FIJO = {fijo[f['RUT']]}, pero tiene {f['TURNO']} el {f['DIA']}")
         tramos = tramos_conectado(f, reglas)
         if max(tramos) > reglas["conectado_max_h"] * 60:
             alerta("MÁS DE 3 H CONECTADO SIN PAUSA", f["FECHA"], f["RUT"], f"tramos de {tramos} min")
@@ -783,9 +786,11 @@ def exportar_excel(ruta, plan, ejecutivos, turnos_semana, calendario, alertas, r
            "DURACION", "Horas diarias", "Minutos Colacion", "hora colacion", "Total Horas Trabajadas", "HORAS TRABAJADAS",
            "DESCANSO 1", "DESCANSO 2", "SALIDA COLACION", "ENTRADA COLACION", "TIEMPO COLACION"] + METRICAS
     ws.append(enc)
+    rango = plan.groupby("SEMANA")["FECHA"].agg(["min", "max"])  # días del mes que cubre cada semana
+    etiqueta = {s: f"Semana {k} · {r['min']:%d/%m} al {r['max']:%d/%m}" for k, (s, r) in enumerate(rango.iterrows(), start=1)}
     for i, g in enumerate(plan.to_dict("records"), start=2):
         ws.append([
-            g["RUT"], g["ESTADO"], g["NOMBRE"], g["SERVICIO"], g["FECHA"].date(), g["DIA"], g["INICIO_SEMANA"].date(),
+            g["RUT"], g["ESTADO"], g["NOMBRE"], g["SERVICIO"], g["FECHA"].date(), g["DIA"], etiqueta[g["SEMANA"]],
             g["TURNO"], g["ESTADO_DIA"], a_time(g["H_INICIO"]), a_time(g["H_TERMINO"]),
             f"=IF(COUNT(J{i}:K{i})=2,K{i}-J{i},0)", f"=L{i}*24", int(g["Minutos Colacion"]), f"=N{i}/60", f"=M{i}-O{i}",
             f"=SUMIFS($P:$P,$A:$A,A{i},$G:$G,G{i})",
@@ -793,8 +798,8 @@ def exportar_excel(ruta, plan, ejecutivos, turnos_semana, calendario, alertas, r
             f"=IF(COUNT(T{i}:U{i})=2,ROUND((U{i}-T{i})*1440,0),0)",
         ] + [g[m] for m in METRICAS])
     n_plan = len(plan)
-    estilo_tabla(ws, n_plan, len(enc), [12, 9, 38, 26, 12, 11, 12, 20, 12, 9, 10, 10, 9, 10, 9, 11, 11, 10, 10, 11, 11, 10] + [13] * 6,
-                 {c: "hh:mm" for c in (10, 11, 12, 18, 19, 20, 21)} | {5: "yyyy-mm-dd", 7: "yyyy-mm-dd", 13: "0.0", 15: "0.0", 16: "0.0", 17: "0.0"})
+    estilo_tabla(ws, n_plan, len(enc), [12, 9, 38, 26, 12, 11, 24, 20, 12, 9, 10, 10, 9, 10, 9, 11, 11, 10, 10, 11, 11, 10] + [13] * 6,
+                 {c: "hh:mm" for c in (10, 11, 12, 18, 19, 20, 21)} | {5: "yyyy-mm-dd", 13: "0.0", 15: "0.0", 16: "0.0", 17: "0.0"})
     for estado, color in COLORES_ESTADO.items():
         ws.conditional_formatting.add(f"A2:AB{n_plan + 1}", FormulaRule(formula=[f'$I2="{estado}"'], fill=PatternFill("solid", fgColor=color)))
     ws.conditional_formatting.add(f"AA2:AB{n_plan + 1}", FormulaRule(formula=['AA2="ALERTA"'], fill=PatternFill("solid", fgColor="F8CBAD")))
@@ -895,6 +900,8 @@ def _generar(mes, base):
     ejecutivos, ausencias, reglas, feriados, avisos = leer_plantilla(plantilla)
     reglas["n_plataforma"] = len(ejecutivos)  # el % máximo en descanso es sobre toda la plataforma activa
     print(f"   ✅ {len(ejecutivos)} ejecutivos activos · {len(ausencias)} días de ausencia · turnos de {reglas['horas_semanales_contrato']:g} h correctos")
+    fijos = [f"{e.NOMBRE} → {e.TURNO_FIJO}" for e in ejecutivos.itertuples() if isinstance(e.TURNO_FIJO, str)]
+    print("   🔒 Turnos fijos: " + (" · ".join(fijos) if fijos else "ninguno (columna TURNO_FIJO vacía)"))
 
     print("▶ Paso 2 de 4 · Leyendo el horario anterior...")
     archivos = ([data / "horario_mes_anterior.xlsx"] if (data / "horario_mes_anterior.xlsx").exists() else []) \

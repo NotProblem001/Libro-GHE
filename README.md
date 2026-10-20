@@ -104,5 +104,6 @@ TURNOS, PARAMETROS y COBERTURA solo se cambian si cambian las reglas de la empre
 | `No module named pandas` / `openpyxl` | Ejecute `pip install pandas openpyxl` |
 | Errores en la plantilla | Corrija la hoja y fila que se indica, guarde, cierre y presione ▶ |
 | No encuentra horario anterior | Copie el último horario como `data/horario_mes_anterior.xlsx`, o escriba el mes en `MES` |
+| La línea `🔒 Turnos fijos` no muestra a quien debería | El programa no leyó su plantilla actual. Revise que esté en `data/PLANTILLA_MES.xlsx` (no en `salida/`), que la columna se llame `TURNO_FIJO`, y presione ▶ otra vez |
 
 **Alertas "DEMASIADOS EN DESCANSO A LA VEZ":** el tope se calcula sobre el total de ejecutivos activos (30% de 16 = 4 personas a la vez, incluidas pausas y colaciones). Si aparece esta alerta, normalmente es porque hay muchas ausencias o se cambiaron los horarios de la hoja TURNOS: revise los días y horas que indica la hoja ALERTAS.
